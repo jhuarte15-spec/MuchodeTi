@@ -15,8 +15,11 @@ create table if not exists productos (
   destacado boolean not null default false,
   oferta text not null default '',
   imagen_path text not null default '',
+  oculto boolean not null default false,
   updated_at timestamptz not null default now()
 );
+
+alter table productos add column if not exists oculto boolean not null default false;
 
 alter table productos enable row level security;
 

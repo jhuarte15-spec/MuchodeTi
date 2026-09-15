@@ -339,6 +339,7 @@ def leer_productos_supabase():
             "talles": str(fila.get("talles") or "Consultar disponibilidad").strip(),
             "stock": str(fila.get("stock") or "").strip(),
             "destacado": bool(fila.get("destacado")),
+            "oculto": bool(fila.get("oculto")),
         }
 
         oferta_valor = fila.get("oferta")

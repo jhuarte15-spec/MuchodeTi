@@ -1,8 +1,11 @@
 from catalogo import *
 
 
-# Leemos todos los productos desde Supabase y ocultamos los que estén marcados sin stock.
-productos = [p for p in leer_productos_supabase() if producto_visible_por_stock(p["stock"])]
+# Leemos todos los productos desde Supabase y ocultamos los que estén sin stock u ocultos a mano.
+productos = [
+    p for p in leer_productos_supabase()
+    if producto_visible_por_stock(p["stock"]) and not p["oculto"]
+]
 productos_destacados = [p for p in productos if p["destacado"]]
 
 nav_marcas = ""

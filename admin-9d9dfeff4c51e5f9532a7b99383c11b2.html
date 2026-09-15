@@ -72,6 +72,9 @@
   td.acciones { white-space: nowrap; }
   td.acciones button { margin-right: 6px; }
   .sin-stock { opacity: .55; }
+  .producto-oculto { opacity: .55; background: #f7eaea; }
+  .check-ocultos { display: flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; }
+  .btn-oculto { background: white; color: var(--error); border: 1px solid var(--error); }
   .modal-fondo {
     display: none;
     position: fixed; inset: 0;
@@ -119,6 +122,9 @@
 
   <div class="toolbar">
     <input id="buscador" type="text" placeholder="Buscar por nombre o código...">
+    <label class="check-ocultos">
+      <input type="checkbox" id="toggle-ocultos"> Mostrar ocultos
+    </label>
     <button class="btn btn-primario" id="btn-nuevo">+ Nuevo producto</button>
   </div>
 
@@ -218,6 +224,7 @@
   const estadoEl = document.getElementById("estado");
   const tablaBody = document.getElementById("tabla-body");
   const buscador = document.getElementById("buscador");
+  const toggleOcultos = document.getElementById("toggle-ocultos");
   const modalFondo = document.getElementById("modal-fondo");
   const form = document.getElementById("form-producto");
   const previewFoto = document.getElementById("preview-foto");
@@ -267,15 +274,17 @@
 
   function renderizarTabla() {
     const filtro = buscador.value.trim().toLowerCase();
+    const conOcultos = toggleOcultos.checked;
     const filtrados = productos.filter(p =>
-      !filtro || p.nombre.toLowerCase().includes(filtro) || p.codigo.toLowerCase().includes(filtro)
+      (conOcultos || !p.oculto) &&
+      (!filtro || p.nombre.toLowerCase().includes(filtro) || p.codigo.toLowerCase().includes(filtro))
     );
 
     tablaBody.innerHTML = filtrados.map(p => `
-      <tr class="${esConStock(p.stock) ? "" : "sin-stock"}">
+      <tr class="${p.oculto ? "producto-oculto" : (esConStock(p.stock) ? "" : "sin-stock")}">
         <td><img src="${urlFoto(p.imagen_path)}" alt=""></td>
         <td>${p.codigo}</td>
-        <td>${p.nombre}</td>
+        <td>${p.nombre}${p.oculto ? " (oculto)" : ""}</td>
         <td>${p.marca}</td>
         <td>${p.precio}</td>
         <td>${esConStock(p.stock) ? "Sí" : "No"}</td>
@@ -283,7 +292,9 @@
         <td>${p.oferta || ""}</td>
         <td class="acciones">
           <button class="btn btn-secundario" data-editar="${p.codigo}">Editar</button>
-          <button class="btn btn-peligro" data-borrar="${p.codigo}">Borrar</button>
+          ${p.oculto
+            ? `<button class="btn btn-secundario" data-mostrar="${p.codigo}">Mostrar</button>`
+            : `<button class="btn btn-oculto" data-ocultar="${p.codigo}">Ocultar</button>`}
         </td>
       </tr>
     `).join("");
@@ -402,24 +413,22 @@
     await dispararRebuild();
   }
 
-  async function borrarProducto(codigo) {
-    if (!confirm(`¿Borrar el producto ${codigo}? Esta acción no se puede deshacer.`)) return;
+  async function cambiarOculto(codigo, oculto) {
+    mostrarEstado(oculto ? "Ocultando..." : "Mostrando de nuevo...", "cargando");
 
-    mostrarEstado("Borrando...", "cargando");
-    const producto = productos.find(p => p.codigo === codigo);
-
-    const { error } = await sb.from("productos").delete().eq("codigo", codigo);
+    const { error } = await sb.from("productos").update({ oculto }).eq("codigo", codigo);
     if (error) {
-      mostrarEstado("No se pudo borrar: " + error.message, "error");
+      mostrarEstado("No se pudo actualizar: " + error.message, "error");
       return;
     }
 
-    if (producto && producto.imagen_path) {
-      await sb.storage.from(BUCKET).remove([producto.imagen_path]);
-    }
-
     await cargarProductos();
-    mostrarEstado("Producto borrado. Publicando cambios (tarda ~1 minuto en verse)...", "ok");
+    mostrarEstado(
+      oculto
+        ? "Producto oculto del sitio. Publicando cambios (tarda ~1 minuto en verse)..."
+        : "Producto visible de nuevo. Publicando cambios (tarda ~1 minuto en verse)...",
+      "ok"
+    );
     await dispararRebuild();
   }
 
@@ -429,6 +438,7 @@
   modalFondo.addEventListener("click", (e) => { if (e.target === modalFondo) cerrarModal(); });
   form.addEventListener("submit", guardarProducto);
   buscador.addEventListener("input", renderizarTabla);
+  toggleOcultos.addEventListener("change", renderizarTabla);
 
   document.getElementById("f-foto").addEventListener("change", (e) => {
     archivoFotoNuevo = e.target.files[0] || null;
@@ -439,9 +449,11 @@
 
   tablaBody.addEventListener("click", (e) => {
     const codigoEditar = e.target.getAttribute("data-editar");
-    const codigoBorrar = e.target.getAttribute("data-borrar");
+    const codigoOcultar = e.target.getAttribute("data-ocultar");
+    const codigoMostrar = e.target.getAttribute("data-mostrar");
     if (codigoEditar) abrirModal(productos.find(p => p.codigo === codigoEditar));
-    if (codigoBorrar) borrarProducto(codigoBorrar);
+    if (codigoOcultar) cambiarOculto(codigoOcultar, true);
+    if (codigoMostrar) cambiarOculto(codigoMostrar, false);
   });
 
   // Arranque: login automático (sin pantalla de login) + carga de productos.
