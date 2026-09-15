@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Panel MuchodeTi</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root {
+    --rosa-fondo: #f4dedf;
+    --rosa-claro: #f9eeee;
+    --rosa-medio: #d5a0a4;
+    --rosa-oscuro: #8b5159;
+    --vino: #6f3943;
+    --texto: #5c3941;
+    --blanco: #fffafa;
+    --ok: #3f7a4e;
+    --error: #b13b3b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: var(--rosa-claro);
+    color: var(--texto);
+  }
+  header {
+    background: linear-gradient(90deg, #c99096, #d9aaa9);
+    color: white;
+    padding: 18px 20px;
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; opacity: .9; }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  #estado {
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    display: none;
+  }
+  #estado.ok { display: block; background: #e3f1e5; color: var(--ok); border: 1px solid var(--ok); }
+  #estado.error { display: block; background: #fbe6e6; color: var(--error); border: 1px solid var(--error); }
+  #estado.cargando { display: block; background: #fff7e0; color: #8a6d1d; border: 1px solid #d8b23a; }
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  input, select, textarea, button {
+    font-family: inherit;
+    font-size: 14px;
+  }
+  #buscador {
+    flex: 1;
+    min-width: 200px;
+    padding: 10px 12px;
+    border: 1px solid var(--rosa-medio);
+    border-radius: 8px;
+  }
+  .btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .btn-primario { background: var(--vino); color: white; }
+  .btn-secundario { background: white; color: var(--vino); border: 1px solid var(--vino); }
+  .btn-peligro { background: var(--error); color: white; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--rosa-fondo); font-size: 14px; vertical-align: middle; }
+  th { background: var(--rosa-fondo); }
+  td img { width: 46px; height: 46px; object-fit: cover; border-radius: 6px; }
+  td.acciones { white-space: nowrap; }
+  td.acciones button { margin-right: 6px; }
+  .sin-stock { opacity: .55; }
+  .modal-fondo {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.4);
+    align-items: center; justify-content: center;
+    padding: 16px;
+    z-index: 10;
+  }
+  .modal-fondo.abierto { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h2 { margin-top: 0; }
+  .campo { margin-bottom: 14px; }
+  .campo label { display: block; margin-bottom: 4px; font-size: 13px; font-weight: bold; }
+  .campo input[type=text], .campo input[type=number], .campo select, .campo textarea {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--rosa-medio);
+    border-radius: 6px;
+  }
+  .campo-fila { display: flex; gap: 14px; }
+  .campo-fila .campo { flex: 1; }
+  .campo-check { display: flex; align-items: center; gap: 8px; }
+  .campo-check label { margin: 0; }
+  #preview-foto { width: 90px; height: 90px; object-fit: cover; border-radius: 8px; margin-top: 8px; display: block; }
+  .modal-acciones { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Panel de productos — MuchodeTi</h1>
+  <p>Este link es privado. No lo compartas ni lo publiques en ningún lado.</p>
+</header>
+
+<main>
+  <div id="estado"></div>
+
+  <div class="toolbar">
+    <input id="buscador" type="text" placeholder="Buscar por nombre o código...">
+    <button class="btn btn-primario" id="btn-nuevo">+ Nuevo producto</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Código</th>
+        <th>Nombre</th>
+        <th>Marca</th>
+        <th>Precio</th>
+        <th>Stock</th>
+        <th>Destacado</th>
+        <th>Oferta</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="tabla-body"></tbody>
+  </table>
+</main>
+
+<div class="modal-fondo" id="modal-fondo">
+  <div class="modal">
+    <h2 id="modal-titulo">Nuevo producto</h2>
+    <form id="form-producto">
+      <div class="campo">
+        <label>Código (único, no se puede cambiar después)</label>
+        <input type="text" id="f-codigo" required>
+      </div>
+      <div class="campo">
+        <label>Nombre</label>
+        <input type="text" id="f-nombre" required>
+      </div>
+      <div class="campo-fila">
+        <div class="campo">
+          <label>Marca</label>
+          <select id="f-marca" required></select>
+        </div>
+        <div class="campo">
+          <label>Precio</label>
+          <input type="text" id="f-precio" placeholder="ej: 25000">
+        </div>
+      </div>
+      <div class="campo">
+        <label>Rubro (para clasificar la categoría automáticamente)</label>
+        <input type="text" id="f-rubro" placeholder="ej: corpiño, camison, bombacha...">
+      </div>
+      <div class="campo">
+        <label>Descripción</label>
+        <textarea id="f-descripcion" rows="3"></textarea>
+      </div>
+      <div class="campo">
+        <label>Talles</label>
+        <input type="text" id="f-talles" placeholder="Consultar disponibilidad">
+      </div>
+      <div class="campo">
+        <label>Oferta (dejar vacío si no hay)</label>
+        <input type="text" id="f-oferta" placeholder="ej: 15%">
+      </div>
+      <div class="campo-fila">
+        <div class="campo campo-check">
+          <input type="checkbox" id="f-stock">
+          <label for="f-stock">Con stock</label>
+        </div>
+        <div class="campo campo-check">
+          <input type="checkbox" id="f-destacado">
+          <label for="f-destacado">Destacado</label>
+        </div>
+      </div>
+      <div class="campo">
+        <label>Foto</label>
+        <input type="file" id="f-foto" accept="image/*">
+        <img id="preview-foto" src="imagenes/logo-mucho-de-ti.jpg" alt="">
+      </div>
+      <div class="modal-acciones">
+        <button type="button" class="btn btn-secundario" id="btn-cancelar">Cancelar</button>
+        <button type="submit" class="btn btn-primario" id="btn-guardar">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  // --- Configuración (completar con los datos del proyecto de Supabase / Netlify) ---
+  const SUPABASE_URL = "https://gmazoyxddmjpywkzzfdn.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_SxqhHCIisMKILVI6-i48GQ_L-h2STNE";
+  const BUILD_HOOK_URL = "https://api.netlify.com/build_hooks/6aa899e60b42a58539eb2efb";
+  const ADMIN_EMAIL = "jhuarte15@gmail.com";
+  const ADMIN_PASSWORD = "NjIBF2EJCd0nna6rh8Fv";
+  const MARCAS = ["Ana Grant", "Aretha", "BLUO", "Deville", "So Pink", "Stylo"];
+  const BUCKET = "imagenes";
+  // -----------------------------------------------------------------------------
+
+  let sb;
+
+  const estadoEl = document.getElementById("estado");
+  const tablaBody = document.getElementById("tabla-body");
+  const buscador = document.getElementById("buscador");
+  const modalFondo = document.getElementById("modal-fondo");
+  const form = document.getElementById("form-producto");
+  const previewFoto = document.getElementById("preview-foto");
+
+  let productos = [];
+  let editandoCodigo = null;
+  let archivoFotoNuevo = null;
+
+  function mostrarEstado(texto, tipo) {
+    estadoEl.textContent = texto;
+    estadoEl.className = tipo;
+  }
+
+  function ocultarEstado() {
+    estadoEl.className = "";
+  }
+
+  function urlFoto(imagenPath) {
+    if (!imagenPath) return "imagenes/logo-mucho-de-ti.jpg";
+    return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${imagenPath}`;
+  }
+
+  function llenarSelectMarcas() {
+    const select = document.getElementById("f-marca");
+    select.innerHTML = MARCAS.map(m => `<option value="${m}">${m}</option>`).join("");
+  }
+
+  async function iniciarSesion() {
+    mostrarEstado("Conectando...", "cargando");
+    const { error } = await sb.auth.signInWithPassword({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+    if (error) {
+      mostrarEstado("No se pudo iniciar sesión: " + error.message, "error");
+      throw error;
+    }
+    ocultarEstado();
+  }
+
+  async function cargarProductos() {
+    const { data, error } = await sb.from("productos").select("*").order("nombre");
+    if (error) {
+      mostrarEstado("No se pudieron cargar los productos: " + error.message, "error");
+      return;
+    }
+    productos = data;
+    renderizarTabla();
+  }
+
+  function renderizarTabla() {
+    const filtro = buscador.value.trim().toLowerCase();
+    const filtrados = productos.filter(p =>
+      !filtro || p.nombre.toLowerCase().includes(filtro) || p.codigo.toLowerCase().includes(filtro)
+    );
+
+    tablaBody.innerHTML = filtrados.map(p => `
+      <tr class="${esConStock(p.stock) ? "" : "sin-stock"}">
+        <td><img src="${urlFoto(p.imagen_path)}" alt=""></td>
+        <td>${p.codigo}</td>
+        <td>${p.nombre}</td>
+        <td>${p.marca}</td>
+        <td>${p.precio}</td>
+        <td>${esConStock(p.stock) ? "Sí" : "No"}</td>
+        <td>${p.destacado ? "★" : ""}</td>
+        <td>${p.oferta || ""}</td>
+        <td class="acciones">
+          <button class="btn btn-secundario" data-editar="${p.codigo}">Editar</button>
+          <button class="btn btn-peligro" data-borrar="${p.codigo}">Borrar</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  function esConStock(valor) {
+    const texto = (valor || "").toString().trim().toLowerCase();
+    return texto !== "no" && texto !== "0" && texto !== "sin stock" && texto !== "agotado";
+  }
+
+  function abrirModal(producto) {
+    editandoCodigo = producto ? producto.codigo : null;
+    archivoFotoNuevo = null;
+    document.getElementById("modal-titulo").textContent = producto ? "Editar producto" : "Nuevo producto";
+
+    document.getElementById("f-codigo").value = producto ? producto.codigo : "";
+    document.getElementById("f-codigo").disabled = !!producto;
+    document.getElementById("f-nombre").value = producto ? producto.nombre : "";
+    document.getElementById("f-marca").value = producto ? producto.marca : MARCAS[0];
+    document.getElementById("f-precio").value = producto ? producto.precio : "";
+    document.getElementById("f-rubro").value = producto ? producto.rubro : "";
+    document.getElementById("f-descripcion").value = producto ? producto.descripcion : "";
+    document.getElementById("f-talles").value = producto ? producto.talles : "Consultar disponibilidad";
+    document.getElementById("f-oferta").value = producto ? producto.oferta : "";
+    document.getElementById("f-stock").checked = producto ? esConStock(producto.stock) : true;
+    document.getElementById("f-destacado").checked = producto ? !!producto.destacado : false;
+    document.getElementById("f-foto").value = "";
+    previewFoto.src = urlFoto(producto ? producto.imagen_path : "");
+
+    modalFondo.classList.add("abierto");
+  }
+
+  function cerrarModal() {
+    modalFondo.classList.remove("abierto");
+  }
+
+  function redimensionarImagen(archivo) {
+    return new Promise((resolve, reject) => {
+      const lector = new FileReader();
+      lector.onerror = reject;
+      lector.onload = () => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const anchoMax = 1600;
+          const escala = Math.min(1, anchoMax / img.width);
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width * escala;
+          canvas.height = img.height * escala;
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(resolve, "image/jpeg", 0.8);
+        };
+        img.src = lector.result;
+      };
+      lector.readAsDataURL(archivo);
+    });
+  }
+
+  async function dispararRebuild() {
+    if (!BUILD_HOOK_URL || BUILD_HOOK_URL.startsWith("__")) return;
+    try {
+      await fetch(BUILD_HOOK_URL, { method: "POST", mode: "no-cors" });
+    } catch (e) {
+      // El sitio igual se actualizará en el próximo build manual si esto falla.
+    }
+  }
+
+  async function guardarProducto(evento) {
+    evento.preventDefault();
+    mostrarEstado("Guardando...", "cargando");
+
+    const codigo = document.getElementById("f-codigo").value.trim();
+    const marca = document.getElementById("f-marca").value;
+
+    let imagenPath = editandoCodigo
+      ? (productos.find(p => p.codigo === editandoCodigo) || {}).imagen_path || ""
+      : "";
+
+    if (archivoFotoNuevo) {
+      const blob = await redimensionarImagen(archivoFotoNuevo);
+      const path = `${marca}/${codigo}.jpg`;
+      const { error: errorSubida } = await sb.storage.from(BUCKET).upload(path, blob, {
+        upsert: true,
+        contentType: "image/jpeg",
+      });
+      if (errorSubida) {
+        mostrarEstado("No se pudo subir la foto: " + errorSubida.message, "error");
+        return;
+      }
+      imagenPath = path;
+    }
+
+    const fila = {
+      codigo,
+      nombre: document.getElementById("f-nombre").value.trim(),
+      marca,
+      precio: document.getElementById("f-precio").value.trim(),
+      rubro: document.getElementById("f-rubro").value.trim(),
+      descripcion: document.getElementById("f-descripcion").value.trim(),
+      talles: document.getElementById("f-talles").value.trim() || "Consultar disponibilidad",
+      oferta: document.getElementById("f-oferta").value.trim(),
+      stock: document.getElementById("f-stock").checked ? "Sí" : "No",
+      destacado: document.getElementById("f-destacado").checked,
+      imagen_path: imagenPath,
+    };
+
+    const { error } = await sb.from("productos").upsert(fila, { onConflict: "codigo" });
+    if (error) {
+      mostrarEstado("No se pudo guardar el producto: " + error.message, "error");
+      return;
+    }
+
+    cerrarModal();
+    await cargarProductos();
+    mostrarEstado("Guardado. Publicando cambios en el sitio (tarda ~1 minuto en verse)...", "ok");
+    await dispararRebuild();
+  }
+
+  async function borrarProducto(codigo) {
+    if (!confirm(`¿Borrar el producto ${codigo}? Esta acción no se puede deshacer.`)) return;
+
+    mostrarEstado("Borrando...", "cargando");
+    const producto = productos.find(p => p.codigo === codigo);
+
+    const { error } = await sb.from("productos").delete().eq("codigo", codigo);
+    if (error) {
+      mostrarEstado("No se pudo borrar: " + error.message, "error");
+      return;
+    }
+
+    if (producto && producto.imagen_path) {
+      await sb.storage.from(BUCKET).remove([producto.imagen_path]);
+    }
+
+    await cargarProductos();
+    mostrarEstado("Producto borrado. Publicando cambios (tarda ~1 minuto en verse)...", "ok");
+    await dispararRebuild();
+  }
+
+  // Eventos
+  document.getElementById("btn-nuevo").addEventListener("click", () => abrirModal(null));
+  document.getElementById("btn-cancelar").addEventListener("click", cerrarModal);
+  modalFondo.addEventListener("click", (e) => { if (e.target === modalFondo) cerrarModal(); });
+  form.addEventListener("submit", guardarProducto);
+  buscador.addEventListener("input", renderizarTabla);
+
+  document.getElementById("f-foto").addEventListener("change", (e) => {
+    archivoFotoNuevo = e.target.files[0] || null;
+    if (archivoFotoNuevo) {
+      previewFoto.src = URL.createObjectURL(archivoFotoNuevo);
+    }
+  });
+
+  tablaBody.addEventListener("click", (e) => {
+    const codigoEditar = e.target.getAttribute("data-editar");
+    const codigoBorrar = e.target.getAttribute("data-borrar");
+    if (codigoEditar) abrirModal(productos.find(p => p.codigo === codigoEditar));
+    if (codigoBorrar) borrarProducto(codigoBorrar);
+  });
+
+  // Arranque: login automático (sin pantalla de login) + carga de productos.
+  llenarSelectMarcas();
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    iniciarSesion().then(cargarProductos).catch(() => {});
+  } catch (e) {
+    mostrarEstado("Error de configuración del panel: revisá SUPABASE_URL y SUPABASE_ANON_KEY en este archivo. (" + e.message + ")", "error");
+  }
+})();
+</script>
+
+</body>
+</html>

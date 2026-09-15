@@ -1,0 +1,7 @@
+[build]
+  command = "pip install -r requirements.txt && python generar_pagina.py"
+  publish = "."
+
+[build.environment]
+  SUPABASE_URL = "https://gmazoyxddmjpywkzzfdn.supabase.co"
+  SUPABASE_ANON_KEY = "sb_publishable_SxqhHCIisMKILVI6-i48GQ_L-h2STNE"
