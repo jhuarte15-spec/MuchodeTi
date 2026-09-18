@@ -160,8 +160,9 @@
       </div>
       <div class="campo-fila">
         <div class="campo">
-          <label>Marca</label>
-          <select id="f-marca" required></select>
+          <label>Marca (elegí una o escribí una nueva)</label>
+          <input type="text" id="f-marca" list="marcas-list" required>
+          <datalist id="marcas-list"></datalist>
         </div>
         <div class="campo">
           <label>Precio</label>
@@ -247,9 +248,10 @@
     return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${imagenPath}`;
   }
 
-  function llenarSelectMarcas() {
-    const select = document.getElementById("f-marca");
-    select.innerHTML = MARCAS.map(m => `<option value="${m}">${m}</option>`).join("");
+  function actualizarListaMarcas() {
+    const usadas = productos.map(p => p.marca).filter(Boolean);
+    const marcas = Array.from(new Set([...MARCAS, ...usadas])).sort((a, b) => a.localeCompare(b));
+    document.getElementById("marcas-list").innerHTML = marcas.map(m => `<option value="${m}">`).join("");
   }
 
   async function iniciarSesion() {
@@ -270,6 +272,7 @@
     }
     productos = data;
     renderizarTabla();
+    actualizarListaMarcas();
   }
 
   function renderizarTabla() {
@@ -457,7 +460,7 @@
   });
 
   // Arranque: login automático (sin pantalla de login) + carga de productos.
-  llenarSelectMarcas();
+  actualizarListaMarcas();
   try {
     sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     iniciarSesion().then(cargarProductos).catch(() => {});

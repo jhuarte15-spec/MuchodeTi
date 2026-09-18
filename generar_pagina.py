@@ -8,8 +8,14 @@ productos = [
 ]
 productos_destacados = [p for p in productos if p["destacado"]]
 
+# Marcas conocidas primero (en su orden habitual), y cualquier marca nueva
+# cargada desde el panel se agrega al final, ordenada alfabéticamente.
+marcas_presentes = {p["marca"] for p in productos}
+marcas_nuevas = sorted(marcas_presentes - set(MARCAS_ORDEN))
+marcas_para_nav = [m for m in MARCAS_ORDEN if m in marcas_presentes] + marcas_nuevas
+
 nav_marcas = ""
-for marca in MARCAS_ORDEN:
+for marca in marcas_para_nav:
     nav_marcas += f'<a href="#productos" class="filtro-marca" data-marca="{marca}">{marca}</a>'
 
 nav_categorias = ""
