@@ -303,6 +303,13 @@
     `).join("");
   }
 
+  function rutaSegura(texto) {
+    return String(texto)
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[\\/:*?"<>|]/g, "-")
+      .trim();
+  }
+
   function esConStock(valor) {
     const texto = (valor || "").toString().trim().toLowerCase();
     return texto !== "no" && texto !== "0" && texto !== "sin stock" && texto !== "agotado";
@@ -378,7 +385,7 @@
 
     if (archivoFotoNuevo) {
       const blob = await redimensionarImagen(archivoFotoNuevo);
-      const path = `${marca}/${codigo}.jpg`;
+      const path = `${rutaSegura(marca)}/${rutaSegura(codigo)}.jpg`;
       const { error: errorSubida } = await sb.storage.from(BUCKET).upload(path, blob, {
         upsert: true,
         contentType: "image/jpeg",
