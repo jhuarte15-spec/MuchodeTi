@@ -68,6 +68,9 @@
   table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
   th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--rosa-fondo); font-size: 14px; vertical-align: middle; }
   th { background: var(--rosa-fondo); }
+  th.ordenable { cursor: pointer; user-select: none; }
+  th.ordenable:hover { background: var(--rosa-medio); }
+  th.ordenable .flecha { opacity: .6; font-size: 11px; margin-left: 4px; }
   td img { width: 46px; height: 46px; object-fit: cover; border-radius: 6px; }
   td.acciones { white-space: nowrap; }
   td.acciones button { margin-right: 6px; }
@@ -132,10 +135,10 @@
     <thead>
       <tr>
         <th></th>
-        <th>Código</th>
-        <th>Nombre</th>
-        <th>Marca</th>
-        <th>Precio</th>
+        <th class="ordenable" data-orden="codigo">Código</th>
+        <th class="ordenable" data-orden="nombre">Nombre</th>
+        <th class="ordenable" data-orden="marca">Marca</th>
+        <th class="ordenable" data-orden="precio">Precio</th>
         <th>Stock</th>
         <th>Destacado</th>
         <th>Oferta</th>
@@ -233,6 +236,8 @@
   let productos = [];
   let editandoCodigo = null;
   let archivoFotoNuevo = null;
+  let ordenCampo = "nombre";
+  let ordenAsc = true;
 
   function mostrarEstado(texto, tipo) {
     estadoEl.textContent = texto;
@@ -275,13 +280,42 @@
     actualizarListaMarcas();
   }
 
+  function precioNumero(texto) {
+    return Number(String(texto || "").replace(/[^0-9]/g, "")) || 0;
+  }
+
+  function ordenarProductos(lista) {
+    const factor = ordenAsc ? 1 : -1;
+    return [...lista].sort((a, b) => {
+      if (ordenCampo === "precio") {
+        return (precioNumero(a.precio) - precioNumero(b.precio)) * factor;
+      }
+      const valorA = String(a[ordenCampo] || "");
+      const valorB = String(b[ordenCampo] || "");
+      return valorA.localeCompare(valorB, "es", { numeric: true, sensitivity: "base" }) * factor;
+    });
+  }
+
+  function actualizarFlechasOrden() {
+    document.querySelectorAll("th.ordenable").forEach(th => {
+      th.querySelector(".flecha")?.remove();
+      if (th.dataset.orden === ordenCampo) {
+        const flecha = document.createElement("span");
+        flecha.className = "flecha";
+        flecha.textContent = ordenAsc ? "▲" : "▼";
+        th.appendChild(flecha);
+      }
+    });
+  }
+
   function renderizarTabla() {
     const filtro = buscador.value.trim().toLowerCase();
     const conOcultos = toggleOcultos.checked;
-    const filtrados = productos.filter(p =>
+    const filtrados = ordenarProductos(productos.filter(p =>
       (conOcultos || !p.oculto) &&
       (!filtro || p.nombre.toLowerCase().includes(filtro) || p.codigo.toLowerCase().includes(filtro))
-    );
+    ));
+    actualizarFlechasOrden();
 
     tablaBody.innerHTML = filtrados.map(p => `
       <tr class="${p.oculto ? "producto-oculto" : (esConStock(p.stock) ? "" : "sin-stock")}">
@@ -449,6 +483,19 @@
   form.addEventListener("submit", guardarProducto);
   buscador.addEventListener("input", renderizarTabla);
   toggleOcultos.addEventListener("change", renderizarTabla);
+
+  document.querySelectorAll("th.ordenable").forEach(th => {
+    th.addEventListener("click", () => {
+      const campo = th.dataset.orden;
+      if (ordenCampo === campo) {
+        ordenAsc = !ordenAsc;
+      } else {
+        ordenCampo = campo;
+        ordenAsc = true;
+      }
+      renderizarTabla();
+    });
+  });
 
   document.getElementById("f-foto").addEventListener("change", (e) => {
     archivoFotoNuevo = e.target.files[0] || null;
